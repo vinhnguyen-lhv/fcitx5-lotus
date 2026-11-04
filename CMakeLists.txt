@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(fcitx5-lotus VERSION 6.0.5)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(BUILD_TESTING "Build Lotus tests" OFF)
+option(LOTUS_FLATPAK_ADDON "Build only the addon, as an extension of the org.fcitx.Fcitx5 Flatpak (the server and settings GUI stay on the host)" OFF)
 
 # The addon entry point is intentionally excluded: headless tests link the
 # production implementation through the lotus_test_core target, never the
@@ -38,8 +39,10 @@ find_package(Fcitx5Core ${REQUIRED_FCITX_VERSION} REQUIRED)
 find_package(Fcitx5ModuleEmoji REQUIRED)
 find_package(Pthread REQUIRED)
 find_package(Gettext REQUIRED)
-pkg_check_modules(LIBEVDEV REQUIRED IMPORTED_TARGET libevdev)
-pkg_check_modules(LIBINPUT REQUIRED IMPORTED_TARGET libinput)
+if (NOT LOTUS_FLATPAK_ADDON)
+    pkg_check_modules(LIBEVDEV REQUIRED IMPORTED_TARGET libevdev)
+    pkg_check_modules(LIBINPUT REQUIRED IMPORTED_TARGET libinput)
+endif()
 pkg_check_modules(LIBNOTIFY REQUIRED IMPORTED_TARGET libnotify)
 pkg_check_modules(DBUS REQUIRED IMPORTED_TARGET dbus-1)
 pkg_check_modules(XCB REQUIRED IMPORTED_TARGET xcb)
@@ -69,15 +72,21 @@ set(LOTUS_ALT_EXECUTABLE_PREFIX "" CACHE STRING
     "Additional prefix whose <prefix>*bin/<name> executables are accepted too (NixOS: /nix/store/)")
 set(LOTUS_SETFACL_EXECUTABLE "/usr/bin/setfacl" CACHE FILEPATH
     "setfacl used by the udev rule and the service units")
+set(LOTUS_FLATPAK_FCITX5_EXECUTABLE "" CACHE STRING
+    "Host path of the system Flatpak fcitx5 binary the server also trusts, matched by inode (e.g. /var/lib/flatpak/app/org.fcitx.Fcitx5/current/active/files/bin/fcitx5-bin); empty disables")
+set(LOTUS_HOST_SETTINGS_PATH ".local/bin/fcitx5-lotus-settings" CACHE STRING
+    "LOTUS_FLATPAK_ADDON only: host settings GUI launcher started via flatpak-spawn; relative paths are resolved against $HOME")
 
 add_subdirectory(common)
 add_subdirectory(po)
 add_subdirectory(lotus)
 add_subdirectory(src)
 add_subdirectory(data)
-add_subdirectory(server)
-add_subdirectory(misc)
-add_subdirectory(settings-gui)
+if (NOT LOTUS_FLATPAK_ADDON)
+    add_subdirectory(server)
+    add_subdirectory(misc)
+    add_subdirectory(settings-gui)
+endif()
 
 if (BUILD_TESTING)
     include(CTest)

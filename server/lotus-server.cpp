@@ -31,6 +31,7 @@
 
 #include <climits> // IWYU pragma: keep
 #include <sched.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 std::atomic<bool> g_running{true};
@@ -182,6 +183,28 @@ const struct libinput_interface interface = {
     .close_restricted = close_restricted,
 };
 
+/**
+ * @brief Checks whether the peer runs the system-installed Flatpak fcitx5.
+ *
+ * Inside the sandbox fcitx5 reports its executable as /app/bin/fcitx5-bin,
+ * a path any user process can reproduce in its own mount namespace. Instead,
+ * compare the actual inode behind /proc/<pid>/exe with the root-owned file
+ * deployed by the system Flatpak installation (LOTUS_FLATPAK_FCITX5_EXECUTABLE).
+ * After a Flatpak update fcitx5 must be restarted to match the new deployment.
+ */
+bool isFlatpakFcitx5(const std::string& exeLink) {
+    constexpr std::string_view kTrusted = LOTUS_FLATPAK_FCITX5_EXECUTABLE;
+    if (kTrusted.empty()) {
+        return false;
+    }
+    struct stat peer{};
+    struct stat trusted{};
+    if (::stat(exeLink.c_str(), &peer) != 0 || ::stat(kTrusted.data(), &trusted) != 0) {
+        return false;
+    }
+    return peer.st_dev == trusted.st_dev && peer.st_ino == trusted.st_ino && trusted.st_uid == 0 && (trusted.st_mode & (S_IWGRP | S_IWOTH)) == 0;
+}
+
 std::optional<pid_t> authorizePeer(int fd, uid_t expectedUid, std::string_view socketLabel) {
     struct ucred cred{};
     socklen_t    len = sizeof(struct ucred);
@@ -203,7 +226,7 @@ std::optional<pid_t> authorizePeer(int fd, uid_t expectedUid, std::string_view s
     }
 
     const std::string_view exe(exePath.data(), static_cast<std::size_t>(length));
-    if (!isAllowedExecutablePath(exe, LOTUS_FCITX5_EXECUTABLE, LOTUS_ALT_EXECUTABLE_PREFIX)) {
+    if (!isAllowedExecutablePath(exe, LOTUS_FCITX5_EXECUTABLE, LOTUS_ALT_EXECUTABLE_PREFIX) && !isFlatpakFcitx5(exeLink)) {
         LotusLogger::instance().warn("Unauthorized executable connection attempt to " + std::string(socketLabel) + " from: " + std::string(exe));
         return std::nullopt;
     }

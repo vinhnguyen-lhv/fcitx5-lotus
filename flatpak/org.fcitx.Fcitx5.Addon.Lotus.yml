@@ -1,0 +1,40 @@
+# Lotus as an extension of the org.fcitx.Fcitx5 Flatpak.
+#
+# Only the addon runs inside the sandbox. The uinput server (system service)
+# and the settings GUI must be installed on the host; build the server with
+# -DLOTUS_FLATPAK_FCITX5_EXECUTABLE so it accepts the Flatpak fcitx5.
+#
+# Local build and install:
+#   flatpak-builder --user --install --force-clean build-flatpak \
+#       flatpak/org.fcitx.Fcitx5.Addon.Lotus.yml
+id: org.fcitx.Fcitx5.Addon.Lotus
+runtime: org.fcitx.Fcitx5
+runtime-version: stable
+branch: stable
+sdk: org.kde.Sdk//6.11
+build-extension: true
+separate-locales: false
+build-options:
+  prefix: /app/addons/Lotus
+  prepend-pkg-config-path: /app/addons/Lotus/lib/pkgconfig
+  strip: true
+  no-debuginfo: true
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - '*.la'
+modules:
+  - name: fcitx5-lotus
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_LIBDIR=lib
+      - -DFCITX_INSTALL_USE_FCITX_SYS_PATHS=OFF
+      - -DLOTUS_FLATPAK_ADDON=ON
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - build-local
+          - build-flatpak
+          - .flatpak-builder

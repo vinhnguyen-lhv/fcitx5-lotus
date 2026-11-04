@@ -57,6 +57,25 @@ namespace fcitx {
     constexpr const char* MacroTableFile         = "conf/lotus-macro-table.conf";
     constexpr uint64_t    kFocusedProgramFreshMs = 1000;
 
+    /**
+     * @brief Command line that opens the Lotus settings GUI.
+     *
+     * In the Flatpak build the GUI is installed on the host (the sandbox has no
+     * PySide6), so it is started through flatpak-spawn. A relative path is
+     * resolved against $HOME, which is the same path inside and outside the sandbox.
+     */
+    static std::vector<std::string> settingsCommand() {
+#if LOTUS_FLATPAK_ADDON
+        std::string path = FCITX5_LOTUS_SETTINGS_PATH;
+        if (!path.starts_with('/')) {
+            path = getEnv("HOME") + "/" + path;
+        }
+        return {"flatpak-spawn", "--host", path};
+#else
+        return {FCITX5_LOTUS_SETTINGS_PATH};
+#endif
+    }
+
     EmojiLoader&          LotusEngine::emojiLoader() {
         if (!emojiLoader_) {
             emojiLoader_ = std::make_unique<EmojiLoader>(&instance_.addonManager());
@@ -212,7 +231,7 @@ namespace fcitx {
         settingsAction_ = std::make_unique<SimpleAction>();
         settingsAction_->setShortText(_("Settings"));
         settingsAction_->setIcon("configure");
-        connections_.emplace_back(settingsAction_->connect<SimpleAction::Activated>([](InputContext*) { startProcess({FCITX5_LOTUS_SETTINGS_PATH}); }));
+        connections_.emplace_back(settingsAction_->connect<SimpleAction::Activated>([](InputContext*) { startProcess(settingsCommand()); }));
         uiManager.registerAction("lotus-settings", settingsAction_.get());
 
         std::string configDir = lotusConfigDir();

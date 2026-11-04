@@ -1,3 +1,9 @@
+if (LOTUS_FLATPAK_ADDON)
+    set(LOTUS_SETTINGS_PATH "${LOTUS_HOST_SETTINGS_PATH}")
+else()
+    set(LOTUS_SETTINGS_PATH "${CMAKE_INSTALL_FULL_BINDIR}/fcitx5-lotus-settings")
+endif()
+
 # Core sources are compiled once here and consumed by both the module and
 # lotus_test_core; LOTUS_EXPORT keeps the test-facing API linkable.
 add_library(lotus_core_objects OBJECT ${fcitx_lotus_core_sources})
@@ -8,7 +14,8 @@ target_include_directories(lotus_core_objects PRIVATE
     ${PROJECT_SOURCE_DIR}/common
 )
 target_compile_definitions(lotus_core_objects PRIVATE
-    FCITX5_LOTUS_SETTINGS_PATH="${CMAKE_INSTALL_FULL_BINDIR}/fcitx5-lotus-settings"
+    FCITX5_LOTUS_SETTINGS_PATH="${LOTUS_SETTINGS_PATH}"
+    LOTUS_FLATPAK_ADDON=$<BOOL:${LOTUS_FLATPAK_ADDON}>
     LOTUS_SERVER_EXECUTABLE="${LOTUS_SERVER_EXECUTABLE}"
     LOTUS_ALT_EXECUTABLE_PREFIX="${LOTUS_ALT_EXECUTABLE_PREFIX}"
 )
@@ -71,7 +78,8 @@ target_include_directories(lotus PRIVATE
 )
 # Same flags as lotus_core_objects so its prebuilt PCH is reused, not rejected.
 target_compile_definitions(lotus PRIVATE
-    FCITX5_LOTUS_SETTINGS_PATH="${CMAKE_INSTALL_FULL_BINDIR}/fcitx5-lotus-settings"
+    FCITX5_LOTUS_SETTINGS_PATH="${LOTUS_SETTINGS_PATH}"
+    LOTUS_FLATPAK_ADDON=$<BOOL:${LOTUS_FLATPAK_ADDON}>
     LOTUS_SERVER_EXECUTABLE="${LOTUS_SERVER_EXECUTABLE}"
     LOTUS_ALT_EXECUTABLE_PREFIX="${LOTUS_ALT_EXECUTABLE_PREFIX}"
 )
