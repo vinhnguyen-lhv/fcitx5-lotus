@@ -8,6 +8,7 @@
 #include "lotus-dbus.h"
 #include "lotus-utils.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 
@@ -18,6 +19,7 @@ namespace fcitx {
         constexpr int                       kReadWriteTimeoutMs = 50;   ///< Signal poll interval
         constexpr int                       kReconnectDelayMs   = 100;  ///< Delay between reconnect attempts
         constexpr int                       kReconnectAttempts  = 20;   ///< Attempts before the bus is retried
+        constexpr int                       kMaxBackoffShift    = 5;    ///< Failed connects double the wait, up to 32x (~64 s)
         constexpr int                       kRedialAttempts     = 10;   ///< Attempts after a bus loss
         constexpr std::chrono::seconds      kPokeInterval{15};          ///< Accessibility tree priming period
         constexpr int                       kChromiumPokeAttempts = 3;  ///< Fast pokes after focusing a Chromium window
@@ -164,6 +166,7 @@ namespace fcitx {
 
     void WindowFocusTracker::threadFunc() {
         dbusEnsureThreadsInitialised();
+        int failedConnects = 0;
         while (!stopRequested_.load(std::memory_order_acquire)) {
             DbusConnectionPtr bus = dbusConnectAtspiBus();
             if (!bus || !registerFocusEvents(bus)) {
@@ -173,11 +176,17 @@ namespace fcitx {
                     focusedProgram_.clear();
                     lastFocusEventMs_ = 0;
                 }
-                for (int retry = 0; retry < kReconnectAttempts && !stopRequested_.load(std::memory_order_acquire); ++retry) {
+                // Back off while the bus stays unusable (e.g. the Flatpak
+                // accessibility proxy denies the registry), instead of
+                // reconnecting every 2 s for the whole session.
+                const int attempts = kReconnectAttempts << std::min(failedConnects, kMaxBackoffShift);
+                ++failedConnects;
+                for (int retry = 0; retry < attempts && !stopRequested_.load(std::memory_order_acquire); ++retry) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(kReconnectDelayMs));
                 }
                 continue;
             }
+            failedConnects = 0;
             std::string focusBus;
             std::string focusPath;
             int         chromiumPokesLeft = 0;

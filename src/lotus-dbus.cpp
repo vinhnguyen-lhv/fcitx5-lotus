@@ -122,7 +122,10 @@ DbusConnectionPtr dbusConnectAtspiBus() {
     const std::string address = dbusAtspiBusAddress();
     if (!address.empty()) {
         DbusErrorGuard    error;
-        DbusConnectionPtr bus(dbus_connection_open(address.c_str(), error.get()), DbusConnectionDeleter{});
+        // Private, so the deleter closes it: a shared connection that fails the
+        // checks below would stay open after the unref, leaking one socket (and
+        // one connection on the accessibility bus) per reconnect attempt.
+        DbusConnectionPtr bus(dbus_connection_open_private(address.c_str(), error.get()), DbusConnectionDeleter{.isPrivate = true});
         if (bus && !error.isSet() && dbus_bus_register(bus.get(), error.get()) != FALSE && !error.isSet() && pingRegistry(bus.get())) {
             dbus_connection_set_exit_on_disconnect(bus.get(), FALSE);
             return bus;
